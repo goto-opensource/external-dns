@@ -194,11 +194,13 @@ func (im *TXTRegistry) generateTXTRecord(r *endpoint.Endpoint) []*endpoint.Endpo
 	// old TXT record format
 	txt := endpoint.NewEndpoint(im.mapper.toTXTName(r.DNSName), endpoint.RecordTypeTXT, r.Labels.Serialize(true)).WithSetIdentifier(r.SetIdentifier)
 	txt.ProviderSpecific = r.ProviderSpecific
+	txt.Labels[endpoint.OwnedRecordLabelKey] = r.DNSName
 	// new TXT record format (containing record type)
 	txtNew := endpoint.NewEndpoint(im.mapper.toNewTXTName(r.DNSName, r.RecordType), endpoint.RecordTypeTXT, r.Labels.Serialize(true))
 	if txtNew != nil {
 		txtNew.WithSetIdentifier(r.SetIdentifier)
 		txtNew.ProviderSpecific = r.ProviderSpecific
+		txtNew.Labels[endpoint.OwnedRecordLabelKey] = r.DNSName
 	} else {
 		return []*endpoint.Endpoint{txt}
 	}
