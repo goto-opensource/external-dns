@@ -53,6 +53,7 @@ const (
 	providerSpecificGeolocationSubdivisionCode = "aws/geolocation-subdivision-code"
 	providerSpecificMultiValueAnswer           = "aws/multi-value-answer"
 	providerSpecificHealthCheckID              = "aws/health-check-id"
+	sameZoneAlias                              = "same-zone"
 )
 
 var (
@@ -728,7 +729,7 @@ func changesByZone(zones map[string]*route53.HostedZone, changeSet []*route53.Ch
 			continue
 		}
 		for _, z := range zones {
-			if c.ResourceRecordSet.AliasTarget != nil && aws.StringValue(c.ResourceRecordSet.AliasTarget.HostedZoneId) == "same-zone" {
+			if c.ResourceRecordSet.AliasTarget != nil && aws.StringValue(c.ResourceRecordSet.AliasTarget.HostedZoneId) == sameZoneAlias {
 				// alias record is to be created; target needs to be in the same zone as endpoint
 				// if it's not, this will fail
 				rrset := *c.ResourceRecordSet
@@ -812,7 +813,7 @@ func isAWSAlias(ep *endpoint.Endpoint) string {
 		}
 
 		// if not, target needs to be in the same zone
-		return "same-zone"
+		return sameZoneAlias
 	}
 	return ""
 }
