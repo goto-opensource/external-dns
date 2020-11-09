@@ -404,11 +404,7 @@ func (p *AWSProvider) doRecords(ctx context.Context, action string, endpoints []
 		return errors.Wrapf(err, "failed to list zones, aborting %s doRecords action", action)
 	}
 
-	records, err := p.records(ctx, zones)
-	if err != nil {
-		log.Errorf("failed to list records while preparing %s doRecords action: %s", action, err)
-	}
-	return p.submitChanges(ctx, p.newChanges(action, endpoints, records, zones), zones)
+	return p.submitChanges(ctx, p.newChanges(action, endpoints, zones), zones)
 }
 
 // ApplyChanges applies a given set of changes in a given zone.
@@ -418,20 +414,11 @@ func (p *AWSProvider) ApplyChanges(ctx context.Context, changes *plan.Changes) e
 		return errors.Wrap(err, "failed to list zones, not applying changes")
 	}
 
-	records, ok := ctx.Value(provider.RecordsContextKey).([]*endpoint.Endpoint)
-	if !ok {
-		var err error
-		records, err = p.records(ctx, zones)
-		if err != nil {
-			log.Errorf("failed to get records while preparing to applying changes: %s", err)
-		}
-	}
-
 	combinedChanges := make([]*route53.Change, 0, len(changes.Create)+len(changes.UpdateNew)+len(changes.Delete))
 
-	combinedChanges = append(combinedChanges, p.newChanges(route53.ChangeActionCreate, changes.Create, records, zones)...)
-	combinedChanges = append(combinedChanges, p.newChanges(route53.ChangeActionUpsert, changes.UpdateNew, records, zones)...)
-	combinedChanges = append(combinedChanges, p.newChanges(route53.ChangeActionDelete, changes.Delete, records, zones)...)
+	combinedChanges = append(combinedChanges, p.newChanges(route53.ChangeActionCreate, changes.Create, zones)...)
+	combinedChanges = append(combinedChanges, p.newChanges(route53.ChangeActionUpsert, changes.UpdateNew, zones)...)
+	combinedChanges = append(combinedChanges, p.newChanges(route53.ChangeActionDelete, changes.Delete, zones)...)
 
 	return p.submitChanges(ctx, combinedChanges, zones)
 }
@@ -497,11 +484,11 @@ func (p *AWSProvider) submitChanges(ctx context.Context, changes []*route53.Chan
 }
 
 // newChanges returns a collection of Changes based on the given records and action.
-func (p *AWSProvider) newChanges(action string, endpoints []*endpoint.Endpoint, recordsCache []*endpoint.Endpoint, zones map[string]*route53.HostedZone) []*route53.Change {
+func (p *AWSProvider) newChanges(action string, endpoints []*endpoint.Endpoint, zones map[string]*route53.HostedZone) []*route53.Change {
 	changes := make([]*route53.Change, 0, len(endpoints))
 
 	for _, endpoint := range endpoints {
-		change, dualstack := p.newChange(action, endpoint, recordsCache, zones)
+		change, dualstack := p.newChange(action, endpoint, zones)
 		changes = append(changes, change)
 		if dualstack {
 			// make a copy of change, modify RRS type to AAAA, then add new change
@@ -543,7 +530,7 @@ func (p *AWSProvider) ModifyEndpoints(endpoints []*endpoint.Endpoint) {
 // returned Change is based on the given record by the given action, e.g.
 // action=ChangeActionCreate returns a change for creation of the record and
 // action=ChangeActionDelete returns a change for deletion of the record.
-func (p *AWSProvider) newChange(action string, ep *endpoint.Endpoint, recordsCache []*endpoint.Endpoint, zones map[string]*route53.HostedZone) (*route53.Change, bool) {
+func (p *AWSProvider) newChange(action string, ep *endpoint.Endpoint, zones map[string]*route53.HostedZone) (*route53.Change, bool) {
 	change := &route53.Change{
 		Action: aws.String(action),
 		ResourceRecordSet: &route53.ResourceRecordSet{
