@@ -62,6 +62,10 @@ func NewTXTRegistry(provider provider.Provider, txtPrefix, txtSuffix, ownerID st
 	}, nil
 }
 
+func (im *TXTRegistry) Provider() *provider.Provider {
+	return &im.provider
+}
+
 // Records returns the current records from the registry excluding TXT Records
 // If TXT records was created previously to indicate ownership its corresponding value
 // will be added to the endpoints Labels map
@@ -133,6 +137,7 @@ func (im *TXTRegistry) ApplyChanges(ctx context.Context, changes *plan.Changes) 
 		UpdateOld: filterOwnedRecords(im.ownerID, changes.UpdateOld),
 		Delete:    filterOwnedRecords(im.ownerID, changes.Delete),
 	}
+
 	for _, r := range filteredChanges.Create {
 		if r.Labels == nil {
 			r.Labels = make(map[string]string)
@@ -188,11 +193,14 @@ func (im *TXTRegistry) ApplyChanges(ctx context.Context, changes *plan.Changes) 
 		}
 	}
 
-	// when caching is enabled, disable the provider from using the cache
-	if im.cacheInterval > 0 {
-		ctx = context.WithValue(ctx, provider.RecordsContextKey, nil)
+	err := im.provider.ApplyChanges(ctx, filteredChanges)
+	if err != nil {
+		// if ApplyChanges fails, we can't know if some or none of the changes have been committed, therefor we invalidate the cache
+		im.recordsCache = nil
+		return err
 	}
-	return im.provider.ApplyChanges(ctx, filteredChanges)
+
+	return nil
 }
 
 // PropertyValuesEqual compares two attribute values for equality
